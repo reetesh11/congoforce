@@ -1,0 +1,21 @@
+{
+  "acceptance": [
+    {
+      "criterion": "AC-1",
+      "file": "tests/acceptance/test_feature.py",
+      "tests": 3,
+      "expect_red": true,
+      "description": "what these tests assert"
+    },
+    {
+      "criterion": "AC-4",
+      "file": "tests/acceptance/test_unchanged.py",
+      "tests": 1,
+      "expect_red": false,
+      "description": "behaviour that must not change: passes before and after"
+    }
+  ],
+  "untestable": [
+    {"criterion": "AC-5", "reason": "visual polish; checked by the verifier by reading code"}
+  ]
+}

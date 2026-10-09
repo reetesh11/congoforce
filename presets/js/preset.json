@@ -1,0 +1,39 @@
+{
+  "name": "js",
+  "description": "JavaScript/TypeScript with vitest (preferred) or jest; eslint and tsc when configured; npm, pnpm or yarn",
+  "detect_files": ["package.json"],
+  "runners": {
+    "vitest": {
+      "test": "cd {pkg} && npx vitest run --reporter=default --reporter=junit --outputFile.junit={junit}",
+      "test_files": "cd {pkg} && npx vitest run {files} --reporter=default --reporter=junit --outputFile.junit={junit}",
+      "config_globs": ["vitest.config.*", "vitest.workspace.*"]
+    },
+    "jest": {
+      "test": "cd {pkg} && JEST_JUNIT_OUTPUT_FILE={junit} npx jest --ci --reporters=default --reporters=jest-junit",
+      "test_files": "cd {pkg} && JEST_JUNIT_OUTPUT_FILE={junit} npx jest --ci --reporters=default --reporters=jest-junit {files}",
+      "config_globs": ["jest.config.*", "jest.setup.*"],
+      "note": "jest needs the jest-junit devDependency for the JUnit report"
+    }
+  },
+  "install": {"pnpm-lock.yaml": "pnpm install --frozen-lockfile", "yarn.lock": "yarn install --frozen-lockfile", "package-lock.json": "npm ci", "package.json": "npm install"},
+  "script_runner": {"pnpm": "pnpm run", "yarn": "yarn run", "npm": "npm run"},
+  "freeze_globs": ["**/__mocks__/**", "**/setupTests.*", "**/test/setup.*", "**/tests/setup.*"],
+  "freeze_keys": ["package.json#scripts.test", "package.json#jest", "package.json#vitest"],
+  "e2e": {"@playwright/test": "cd {pkg} && PLAYWRIGHT_JUNIT_OUTPUT_NAME={junit} npx playwright test --reporter=junit"},
+  "acceptance_dir": "src/__acceptance__",
+  "suspect_patterns": [
+    "SyntaxError: (?!.*does not provide an export)",
+    "ReferenceError: (describe|it|test|expect|vi) is not defined",
+    "Cannot find (module|package) '(vitest|jest|@testing-library/[a-z-]+)'",
+    "No test suite found",
+    "Transform failed"
+  ],
+  "import_red_patterns": [
+    "Cannot find module",
+    "Failed to (load|resolve import)",
+    "does not provide an export named",
+    "is not a function",
+    "is not exported",
+    "Failed to load url"
+  ]
+}

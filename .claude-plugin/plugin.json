@@ -1,0 +1,54 @@
+{
+  "name": "congoforce",
+  "displayName": "CongoForce",
+  "version": "0.1.0",
+  "description": "Software factory for Claude Code: a requirement file in, a tested pull request out. Two human gates, frozen acceptance tests, a deterministic implement/verify loop. Python and JS/TS.",
+  "author": {
+    "name": "Reetesh"
+  },
+  "license": "MIT",
+  "keywords": ["software-factory", "tdd", "pull-request", "agents", "python", "javascript", "typescript"],
+  "userConfig": {
+    "max_iterations": {
+      "type": "number",
+      "title": "Max implement/verify iterations",
+      "description": "Loop cap before CongoForce stops and asks you (a repo's .congoforce/config.toml overrides it).",
+      "default": 5,
+      "min": 1,
+      "max": 20
+    },
+    "confirm_before_push": {
+      "type": "boolean",
+      "title": "Confirm before push",
+      "description": "Show the PR body and wait for your yes before pushing the branch and opening the PR.",
+      "default": true
+    },
+    "branch_prefix": {
+      "type": "string",
+      "title": "Branch prefix",
+      "description": "Task branches are named <prefix><task-id>.",
+      "default": "congoforce/"
+    },
+    "run_mode": {
+      "type": "string",
+      "title": "Run mode",
+      "description": "background runs the implementer and verifier as background agents after Gate 2.",
+      "options": ["foreground", "background"],
+      "default": "foreground"
+    },
+    "command_timeout": {
+      "type": "number",
+      "title": "Command timeout (seconds)",
+      "description": "Upper bound for every install, lint, build or test command the helper runs.",
+      "default": 600,
+      "min": 30,
+      "max": 3600
+    },
+    "default_model": {
+      "type": "string",
+      "title": "Default agent model",
+      "description": "Optional model alias for all six agents (e.g. sonnet). Leave empty to inherit the session model; per-role models go in .congoforce/config.toml [models].",
+      "default": ""
+    }
+  }
+}

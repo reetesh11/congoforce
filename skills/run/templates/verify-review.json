@@ -1,0 +1,11 @@
+{
+  "result": "PASS",
+  "unmet": [
+    {"criterion": "AC-2", "why": "what is missing, with file:line"}
+  ],
+  "findings": [
+    {"severity": "blocking", "file": "src/x.py:42", "summary": "correctness bug that must be fixed before merge"},
+    {"severity": "major", "file": "src/y.py", "summary": "worth fixing; goes into the PR as a note"},
+    {"severity": "note", "file": "src/z.py", "summary": "minor"}
+  ]
+}

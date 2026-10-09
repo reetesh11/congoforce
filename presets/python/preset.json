@@ -1,0 +1,31 @@
+{
+  "name": "python",
+  "description": "Python with pytest; ruff, mypy or pyright when configured",
+  "detect_files": ["pyproject.toml", "setup.cfg", "setup.py", "requirements.txt", "requirements-dev.txt", "Pipfile"],
+  "test": "{env}{python} -m pytest -q -o junit_family=xunit1 --continue-on-collection-errors --junitxml={junit}",
+  "test_files": "{env}{python} -m pytest -q -o junit_family=xunit1 --continue-on-collection-errors --junitxml={junit} {files}",
+  "lint": {"ruff": "ruff check .", "flake8": "{python} -m flake8"},
+  "typecheck": {"mypy": "{env}{python} -m mypy .", "pyright": "pyright"},
+  "install": {
+    "uv.lock": "uv sync",
+    "poetry.lock": "poetry install",
+    "requirements-dev.txt": "{python} -m pip install -q -r requirements-dev.txt",
+    "requirements.txt": "{python} -m pip install -q -r requirements.txt"
+  },
+  "freeze_globs": ["**/conftest.py", "pytest.ini", "tox.ini", "setup.cfg"],
+  "freeze_keys": ["pyproject.toml#tool.pytest.ini_options", "pyproject.toml#tool.pytest"],
+  "acceptance_dir": "tests/acceptance",
+  "suspect_patterns": [
+    "SyntaxError",
+    "IndentationError",
+    "fixture '.*' not found",
+    "No module named '?pytest'?",
+    "TabError"
+  ],
+  "import_red_patterns": [
+    "ModuleNotFoundError",
+    "ImportError",
+    "cannot import name",
+    "AttributeError: module '.*' has no attribute"
+  ]
+}

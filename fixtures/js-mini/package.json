@@ -1,0 +1,13 @@
+{
+  "name": "js-mini",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "lint": "node scripts/lint.mjs"
+  },
+  "devDependencies": {
+    "vitest": "^2.1.9"
+  }
+}

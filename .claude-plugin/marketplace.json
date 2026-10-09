@@ -1,0 +1,16 @@
+{
+  "name": "congoforce",
+  "owner": {
+    "name": "Reetesh"
+  },
+  "metadata": {
+    "description": "CongoForce: a software factory plugin for Claude Code."
+  },
+  "plugins": [
+    {
+      "name": "congoforce",
+      "source": "./",
+      "description": "Software factory: a requirement file in, a tested pull request out."
+    }
+  ]
+}
