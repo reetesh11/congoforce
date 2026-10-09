@@ -45,9 +45,9 @@ def modules(wt: Path, package_dir: str) -> list:
         if not f.startswith(prefix):
             continue
         rest = f[len(prefix):]
-        if "/" in rest:
+        if "/" in rest and Path(rest).suffix in CODE_EXT and not TEST_RX.search(rest):
             top = rest.split("/", 1)[0]
-            if not top.startswith(".") and top not in ("node_modules", "tests", "test", "__tests__", "docs"):
+            if not top.startswith(".") and top not in ("node_modules", "tests", "test", "__tests__", "docs", "scripts"):
                 names.add(prefix + top)
     return sorted(names)[:60]
 

@@ -1,0 +1,20 @@
+name: ci
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.9", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: python -m venv .venv && .venv/bin/pip install pytest
+      - run: git config --global user.email ci@example.com && git config --global user.name ci
+      - run: CONGOFORCE_TEST_PYTHON=$(which python) .venv/bin/python -m pytest -q
+      - run: npx -y @anthropic-ai/claude-code plugin validate --strict .

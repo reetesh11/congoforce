@@ -1,0 +1,10 @@
+CongoForce borrows ideas and document structure (no code) from:
+
+- GitHub Spec Kit (MIT) — spec, plan and task template structure; the
+  "constitution" as the model for standards.md. https://github.com/github/spec-kit
+- Superpowers by Jesse Vincent (MIT) — two-stage review (spec compliance, then
+  quality); TDD and verify-before-completion discipline. https://github.com/obra/superpowers
+- BMAD-METHOD (MIT) — scale-adaptive tracks, the model for the task classifier.
+  https://github.com/bmad-code-org/BMAD-METHOD
+- Kiro (idea only) — EARS-style acceptance criteria; bug tests for reproduce,
+  fix and unchanged behaviour.
