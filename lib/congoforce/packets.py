@@ -90,6 +90,7 @@ def gate2(t, red: dict) -> Path:
     contract = (d / "interface-contract.md").read_text() if (d / "interface-contract.md").exists() else "_(missing)_"
     lines += ["", "## Interface contract (from tech.md)", "", contract.strip()]
     tasks = md_section((d / "tech.md").read_text(), "Tasks") if (d / "tech.md").exists() else ""
+    lines += architecture(t)
     if tasks:
         lines += ["", "## Implementation tasks (from tech.md)", "", tasks]
     lines += ["", "## Red check", ""]
@@ -105,6 +106,20 @@ def gate2(t, red: dict) -> Path:
     out = d / "gate2-packet.md"
     write_text(out, "\n".join(lines) + "\n")
     return out
+
+
+def architecture(t) -> list:
+    """`## Architecture` lines with the task's Mermaid diagrams, or [] when it has none."""
+    dia = t.s.get("diagram") or {}
+    srcs = [(t.dir / f).read_text().strip() for f in dia.get("files", []) if (t.dir / f).exists()]
+    if not srcs:
+        return []
+    lines = ["", "## Architecture", ""]
+    for src in srcs:
+        lines += ["```mermaid", src, "```", ""]
+    if dia.get("rendered"):
+        lines.append("Rendered: " + ", ".join(f"`{t.s.get('history_path') or t.dir}/{f}`" for f in dia["rendered"]))
+    return lines
 
 
 def escalation(t, reason: str, sigs: list) -> Path:
@@ -174,6 +189,7 @@ def pr_body(t, checks: dict, review: dict, commits: list) -> str:
     if findings:
         lines += ["", "## Review notes", ""]
         lines += [f"- **{f.get('severity', 'note')}** {f.get('file', '')}: {f.get('summary', '')}" for f in findings[:20]]
+    lines += architecture(t)
     if commits:
         lines += ["", "## Commits", ""] + [f"- {c.split(' ', 1)[1] if ' ' in c else c}" for c in reversed(commits)]
     usage = t.s.get("usage") or {}
@@ -184,6 +200,7 @@ def pr_body(t, checks: dict, review: dict, commits: list) -> str:
         "",
         f"CongoForce task `{t.task}`, class {t.s.get('class')}, {t.s.get('iteration')} implement iteration(s)"
         + (f", {total:,} tokens" if total else "") + ".",
+        *([f"Models: " + ", ".join(f"{k} {v}" for k, v in (t.s.get("models") or {}).items() if v)] if any((t.s.get("models") or {}).values()) else []),
         f"Specs and tests: `{t.s.get('history_path', '')}`",
         "",
         "🤖 Generated with CongoForce on [Claude Code](https://claude.com/claude-code)",

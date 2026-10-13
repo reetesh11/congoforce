@@ -19,13 +19,20 @@ mandatory and checked by the helper: `## Interface contract` and `## Tasks`.
    routes and bodies, component names, props and accessible text. Be exact.
    The test-author sees only this section, so anything a test needs must be
    here, and nothing about internals.
-4. **Tasks.** An ordered, numbered list. Each task is one commit that
+4. **Architecture.** When your prompt says the diagram is required, add a
+   `## Architecture` section with one ```mermaid block. Use a `flowchart LR`
+   for components and data flow, a `sequenceDiagram` for a request path, or
+   C4 (`C4Container`, `C4Component`) for a system view. Show the existing
+   modules you touch and the new ones, with real file or service names; mark
+   new and changed nodes with `classDef`. Keep it to what this change touches
+   (about 25 nodes at most). The helper rejects a block that does not parse.
+5. **Tasks.** An ordered, numbered list. Each task is one commit that
    leaves lint, build and tests green, names its files (new or modified),
    and leaves no design decision to guesswork. Match granularity to "one
    reviewable commit". Do not pad the list or merge unrelated changes.
-5. **Implementation tests.** Unit or integration tests the implementer adds
+6. **Implementation tests.** Unit or integration tests the implementer adds
    with the code. These are separate from the frozen acceptance tests.
-6. For a **bootstrap** task: the tasks install the test runner, add the
+7. For a **bootstrap** task: the tasks install the test runner, add the
    config, add the test script, and update the commands block of
    `.congoforce/standards.md` **in the worktree** so `test` and `test_files`
    write JUnit XML to `{junit}`.

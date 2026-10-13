@@ -1,0 +1,7 @@
+schema_version: "1.1"
+name: python-architecture-tiers
+description: "A multi-component feature with the architecture diagram forced on and spec/build model tiers; the diagram must reach the gate packet and PR body, and each agent must get its tier's model."
+tags: [e2e, slow, python, feature, diagram, models]
+runs: 1
+context:
+  scaffold_script: scaffold.sh

@@ -18,7 +18,7 @@ from pathlib import Path
 
 from . import checks as chk
 from . import config as cfgmod
-from . import freeze, gitops, junit, packets, presets, prompts, repomap, runner
+from . import diagram, freeze, gitops, junit, packets, presets, prompts, repomap, runner
 from . import standards as stdmod
 from .paths import Paths, find_repo_root
 from .state import (AGENT_STAGES, CLASSES, GATE_STAGES, HELPER_STAGES, SIZES, Task, list_tasks, new_state)
@@ -190,6 +190,9 @@ def next_action(paths, cfg, t: Task) -> dict:
     if stage in AGENT_STAGES:
         std_path = paths.standards_for(t.task)
         p = prompts.build(t, cfg, std_path)
+        if (s.get("models") or {}).get(stage) != p["model"]:
+            s.setdefault("models", {})[stage] = p["model"]
+            t.save()
         return {**base, "kind": "agent", **p,
                 "background": cfg.get("run_mode") == "background" and stage in ("implement", "review"),
                 "then": f"congoforce complete {t.task} {stage} --status done|blocked [--reason ...] [--tokens N] [--questions ...]"}
@@ -268,6 +271,7 @@ def _append_answer(t: Task, heading: str, text: str) -> None:
 
 def _enter_gate(t: Task, cfg, gate: str, note: str = "") -> None:
     t.go(gate, note)
+    _packet_for(t, gate)  # written even when auto-approved: the record of what was approved
     if t.s.get("auto_approve"):
         if gate in ("split", "escalated"):
             t.go("stopped", f"auto-approve does not decide {gate}: {note}")
@@ -409,7 +413,7 @@ def _validate_and_route(paths, cfg, t: Task, stage: str) -> dict:
             raise CFError("req.md has no acceptance criteria (lines starting with AC-1, AC-2, …)")
         if size == "large" and not md_section(body, "Suggested split"):
             raise CFError("size is large but req.md has no `## Suggested split` section")
-        s.update({"class": cls, "size": size, "title": meta["title"]})
+        s.update({"class": cls, "size": size, "size_requested": size, "title": meta["title"]})
         t.save()
         if size == "large" and not s.get("size_override"):
             _enter_gate(t, cfg, "split", "too large for one loop")
@@ -444,8 +448,12 @@ def _validate_and_route(paths, cfg, t: Task, stage: str) -> dict:
             raise CFError("tech.md needs a non-empty `## Interface contract` section")
         if not re.search(r"^\s*\d+\.\s+", tasks, re.M):
             raise CFError("tech.md needs a `## Tasks` section with a numbered list")
+        dia = diagram.process(cfg, s, text, d)
+        if dia["error"]:
+            raise CFError(dia["error"])
+        s["diagram"] = {k: dia[k] for k in ("required", "files", "rendered", "note")}
         write_text(d / "interface-contract.md", f"# Interface contract — {t.task}\n\n{contract}\n")
-        t.go("test_author")
+        t.go("test_author", f"diagrams: {len(dia['files'])}" + (f" ({dia['note']})" if dia["note"] and dia["files"] else ""))
         return {}
     if stage == "test_author":
         _validate_tests_json(t)
@@ -684,7 +692,9 @@ def _freeze(paths, cfg, t: Task) -> dict:
     tests = _validate_tests_json(t)
     files = sorted({e["file"] for e in tests["acceptance"]})
     frozen = freeze.compute(t.wt, files, std.get("freeze_globs", []), std.get("freeze_keys", []))
-    docs = _copy_history(cfg, t, ["req.md", "product-spec.md", "tech.md", "interface-contract.md", "test.md", "tests.json"])
+    dia = t.s.get("diagram") or {}
+    docs = _copy_history(cfg, t, ["req.md", "product-spec.md", "tech.md", "interface-contract.md", "test.md", "tests.json"]
+                         + dia.get("files", []) + dia.get("rendered", []))
     sha = gitops.commit_paths(t.wt, files + docs, f"congoforce({t.task}): approved spec and acceptance tests")
     frozen["commit"] = sha
     frozen["at"] = now()

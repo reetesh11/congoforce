@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from . import diagram
 from .presets import PLUGIN_ROOT
 from .state import AGENT_STAGES
 
@@ -79,6 +80,15 @@ def build(t, cfg: dict, standards_path: Path) -> dict:
         lines += ["", "## Write these outputs (follow the template's structure)"]
         lines += [f"- `{out}` — template: `{tpl}`" for out, tpl in outputs]
 
+    if stage == "tech_spec":
+        need = diagram.required(cfg, s)
+        lines += [
+            "",
+            "## Stage facts",
+            (f"- Architecture diagram: **required** (architecture_diagram = {cfg.get('architecture_diagram')}). "
+             if need else "- Architecture diagram: optional; add one only if the change spans several components. ")
+            + "Put one ```mermaid block in `## Architecture`. The helper checks it and renders it with mermaid-cli when installed.",
+        ]
     if stage == "test_author":
         lines += [
             "",
@@ -107,6 +117,8 @@ def build(t, cfg: dict, standards_path: Path) -> dict:
             f"- The change under review: `git -C {wt} diff {base}...HEAD` and `git -C {wt} log --oneline {base}..HEAD`.",
             f"- Review in two passes: spec compliance per acceptance criterion first, then code quality.",
         ]
+        if (s.get("diagram") or {}).get("files"):
+            lines.append("- tech.md has an `## Architecture` diagram: report components or data flows the code adds, drops or wires differently as a finding.")
     if s.get("last_error"):
         lines += ["", "## Your previous attempt was rejected", f"{s['last_error']}", "Fix exactly this and finish the stage."]
 

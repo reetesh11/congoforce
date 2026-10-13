@@ -17,6 +17,7 @@ worktree named in your prompt.
    `feedback/iter-N.md`, read it first: it is what failed last time.
 2. Work the tasks **in order**. For each task:
    - make exactly that change, following the patterns `tech.md` names
+   - keep the components and data flow in `tech.md`'s `## Architecture` diagram, if there is one
    - add the implementation tests it calls for
    - run `congoforce check <task>` (or the narrower test command) and fix failures before moving on
    - commit it alone: `git -C <worktree> add -A && git -C <worktree> commit -m "<task title>"`

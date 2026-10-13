@@ -188,3 +188,75 @@ def test_status_and_dry_run(py_repo):
     assert act["kind"] == "done" and "dry run" in act["summary"]
     rows = r.cf("status", "--json")
     assert rows[0]["task"] == task and rows[0]["stage"] == "done"
+
+
+DIAGRAM = """
+## Architecture
+
+```mermaid
+flowchart LR
+  caller[caller] --> pkg[textkit/__init__.py]:::changed
+  pkg --> words[textkit/words.py]:::new
+  classDef new fill:#d1fae5
+  classDef changed fill:#fef3c7
+```
+"""
+
+
+def test_large_task_needs_diagram_and_uses_model_tiers(py_repo):
+    r = py_repo
+    task = r.cf("new", "requirements/word-count.md", "--set", "create_pr=false", "--set", "diagram_render=off",
+                "--set", "models.spec=opus", "--set", "models.build=haiku", "--set", "models.verifier=inherit")["task"]
+    r.cf("gate", task, "standards", "approve")
+
+    def large_req(d, wt):
+        (d / "req.md").write_text(stub.REQ.replace("size: small", "size: large")
+                                  + "\n## Suggested split\n- word_count first, then the rest.\n")
+
+    act = drive(r, task, {"requirements": large_req})
+    assert act["gate"] == "split"
+    r.cf("gate", task, "split", "proceed")
+    r.cf("gate", task, "gate1", "approve")
+    class AtTechSpec(Exception):
+        pass
+
+    def stop(d, wt):
+        raise AtTechSpec
+
+    try:
+        drive(r, task, {"tech_spec": stop})
+    except AtTechSpec:
+        pass
+    act = r.cf("next", task)
+    assert act["stage"] == "tech_spec" and act["model"] == "opus"
+    assert "Architecture diagram: **required**" in act["prompt"]
+
+    stub.tech_spec(r.task_dir(task), None)
+    res = r.cf("complete", task, "tech_spec", ok=False)
+    assert "## Architecture" in res["error"] and "architecture_diagram = large" in res["error"]
+    (r.task_dir(task) / "tech.md").write_text(stub.TECH.replace("## Interface contract", DIAGRAM.lstrip() + "\n## Interface contract"))
+    r.cf("complete", task, "tech_spec")
+    assert (r.task_dir(task) / "architecture.mmd").read_text().startswith("flowchart LR")
+
+    act = drive(r, task)
+    assert act["gate"] == "gate2"
+    assert "```mermaid" in (r.task_dir(task) / "gate2-packet.md").read_text()
+    r.cf("gate", task, "gate2", "approve")
+    act = drive(r, task)
+    assert act["gate"] == "ship_confirm"
+    wt = r.path / ".congoforce" / "worktrees" / task
+    assert (wt / ".congoforce" / "history" / task / "architecture.mmd").exists()
+    body = (r.task_dir(task) / "pr-body.md").read_text()
+    assert "## Architecture" in body and "```mermaid" in body
+    models = r.state(task)["models"]
+    assert models["requirements"] == "opus" and models["test_author"] == "opus"
+    assert models["implement"] == "haiku" and models["review"] == ""
+    assert "Models: requirements opus" in body
+
+
+def test_small_task_skips_diagram(py_repo):
+    r = py_repo
+    task = r.cf("new", "requirements/word-count.md", "--auto-approve", "--set", "push=false")["task"]
+    act = drive(r, task)
+    assert act["kind"] == "done"
+    assert r.state(task)["diagram"] == {"required": False, "files": [], "rendered": [], "note": ""}

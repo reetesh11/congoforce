@@ -1,0 +1,7 @@
+schema_version: "1.1"
+name: python-bug-fix
+description: "A bug report runs as class bug: no product spec, a regression test that is red before the fix, a verified branch."
+tags: [e2e, slow, python, bug]
+runs: 1
+context:
+  scaffold_script: scaffold.sh

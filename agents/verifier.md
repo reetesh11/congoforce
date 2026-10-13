@@ -22,6 +22,9 @@ what the spec says, and is it good code?
 4. **Pass 2, quality.** Look for correctness bugs, unhandled errors, missed
    edge cases, security issues, needless complexity, duplication of existing
    utilities, and departures from the standards. Give each finding a file:line.
+   If tech.md has an `## Architecture` diagram, compare the code with it: a
+   component or data flow that was added, dropped or wired differently is a
+   `major` finding unless the commits explain it.
 5. Write `verify-review.json` (template in your prompt):
    - `result`: PASS only if every criterion is met and there are no blocking findings
    - `unmet`: one entry per unmet criterion, with why

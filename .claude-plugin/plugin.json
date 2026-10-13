@@ -47,7 +47,19 @@
     "default_model": {
       "type": "string",
       "title": "Default agent model",
-      "description": "Optional model alias for all six agents (e.g. sonnet). Leave empty to inherit the session model; per-role models go in .congoforce/config.toml [models].",
+      "description": "Optional model alias for all six agents (opus, sonnet, haiku, fable). Leave empty to inherit the session model. Spec and build models below override it for their roles.",
+      "default": ""
+    },
+    "spec_model": {
+      "type": "string",
+      "title": "Spec model",
+      "description": "Model alias for the spec roles: requirements, product-spec, tech-spec and test-author (e.g. opus). Empty = default model.",
+      "default": ""
+    },
+    "build_model": {
+      "type": "string",
+      "title": "Build model",
+      "description": "Model alias for the implementer and verifier (e.g. sonnet). Empty = default model. Per-role models go in .congoforce/config.toml [models].",
       "default": ""
     }
   }

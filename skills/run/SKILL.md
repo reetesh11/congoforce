@@ -19,7 +19,7 @@ If `congoforce` is not on PATH, use `python3 "${CLAUDE_PLUGIN_ROOT}/bin/congofor
 Arguments: `$ARGUMENTS`
 
 1. Sync the plugin options (empty values are ignored):
-   `congoforce sync-user-config "max_iterations=${user_config.max_iterations}" "confirm_before_push=${user_config.confirm_before_push}" "branch_prefix=${user_config.branch_prefix}" "run_mode=${user_config.run_mode}" "command_timeout=${user_config.command_timeout}" "default_model=${user_config.default_model}"`
+   `congoforce sync-user-config "max_iterations=${user_config.max_iterations}" "confirm_before_push=${user_config.confirm_before_push}" "branch_prefix=${user_config.branch_prefix}" "run_mode=${user_config.run_mode}" "command_timeout=${user_config.command_timeout}" "default_model=${user_config.default_model}" "spec_model=${user_config.spec_model}" "build_model=${user_config.build_model}"`
 2. Work out what the arguments are:
    - **An existing task id** (it appears in `congoforce status --json`): resume it. Go to step 1 of the loop.
    - **An existing file path**: `congoforce new <path> [flags]`

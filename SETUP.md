@@ -11,7 +11,8 @@ For what CongoForce does and how the pipeline works, see [README.md](README.md).
 | Python | 3.9+ | the `congoforce` helper (standard library only, nothing to pip install) |
 | git | any recent | worktrees, branches, freeze hashes |
 | `gh` (GitHub CLI) | logged in | opens the pull request; optional if you set `create_pr = false` |
-| Node.js | 18+ | only for JS/TS target repos |
+| Node.js | 18+ | only for JS/TS target repos, or for mermaid-cli |
+| mermaid-cli (`mmdc`) | optional | renders and syntax-checks architecture diagrams: `npm i -g @mermaid-js/mermaid-cli` |
 
 ```bash
 claude --version
@@ -48,6 +49,8 @@ CongoForce in:
 | Run mode | foreground | `background` runs the implementer and verifier in the background |
 | Command timeout | 600 s | upper bound for each install, lint, build or test command |
 | Default agent model | (session model) | e.g. `sonnet` for all six agents |
+| Spec model | (default model) | requirements, product-spec, tech-spec, test-author, e.g. `opus` |
+| Build model | (default model) | implementer and verifier, e.g. `sonnet` |
 
 ## 3. Prepare a target repository
 
@@ -107,14 +110,17 @@ history_dir = ".congoforce/history"
 protected_branches = ["main", "master", "develop", "release"]
 red_check_attempts = 2
 agent_retries = 2
+architecture_diagram = "large"  # off | large | medium | always
+diagram_render = "auto"       # auto (mmdc if installed) | off | "<command with {in} {out}>"
 
-[models]                      # per role; empty = inherit
-requirements = ""
-product-spec = ""
-tech-spec = ""
-test-author = ""
-implementer = ""
-verifier = ""
+[models]                      # opus | sonnet | haiku | fable | inherit
+spec = "opus"                 # requirements, product-spec, tech-spec, test-author
+build = "sonnet"              # implementer, verifier
+# verifier = "opus"           # a role overrides its tier
+# default = "sonnet"          # roles with no tier or role setting
+
+# [model_tiers]               # redefine a tier or add one
+# review = ["verifier", "test-author"]
 ```
 
 To override a setting for one run:
@@ -124,7 +130,14 @@ To override a setting for one run:
 ```
 
 List values take a comma-separated list, for example
-`--set protected_branches=main,staging`.
+`--set protected_branches=main,staging`. Models take a tier or role name:
+`--set models.build=haiku`, `--set models.verifier=opus`.
+
+To check which model each role will use:
+
+```bash
+congoforce doctor | grep -A8 '"models"'
+```
 
 The push guard hook also reads `protected_branches`, so any branch you add
 there is blocked from direct pushes in every Claude Code session in that repo.
@@ -175,8 +188,12 @@ claude --plugin-dir /path/to/congoforce
 python3 -m venv .venv && .venv/bin/pip install pytest
 .venv/bin/python -m pytest -q          # unit tests + full pipeline runs with stub agents
 claude plugin validate --strict .
-claude plugin eval . --scaffold        # live eval cases (uses tokens)
+claude plugin eval . --scaffold --ablation none --tag e2e   # live end-to-end evals; see evals/README.md
 ```
+
+`tests/test_eval_graders.py` runs each eval scenario with stub agents and
+applies that case's file graders, so a broken grader fails CI before it costs
+tokens.
 
 CI (`.github/workflows/ci.yml`) runs the tests on Python 3.9 and 3.12 and
 validates the plugin manifest on every push and pull request.

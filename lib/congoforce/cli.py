@@ -125,6 +125,7 @@ def cmd_doctor(a):
     if shutil.which("gh"):
         auth = subprocess.run(["gh", "auth", "status"], capture_output=True, text=True)
         checks["gh_auth"] = "ok" if auth.returncode == 0 else "not logged in (run: gh auth login)"
+    checks["mermaid_cli"] = "present" if shutil.which("mmdc") else "missing (optional: npm i -g @mermaid-js/mermaid-cli renders and syntax-checks diagrams)"
     try:
         paths, cfg = c.context()
         checks["repo"] = str(paths.root)
