@@ -26,10 +26,12 @@ acceptance tests (Gate 2), confirm the push, and CongoForce does the rest.
 
 Requirements: Claude Code 2.1.295 or later, Python 3.9+ and git on PATH. You
 also need `gh` (logged in) to open PRs; without it, set `create_pr = false`.
+For a step-by-step guide, including first-run and troubleshooting, see
+[SETUP.md](SETUP.md).
 
 ```bash
-# from a clone of this repo
-claude plugin marketplace add /path/to/congoforce
+git clone git@github.com:reetesh11/congoforce.git
+claude plugin marketplace add ./congoforce
 claude plugin install congoforce@congoforce
 ```
 
@@ -104,6 +106,11 @@ test command in `standards.md`. A **large** task stops with a suggested split.
 | `repo_map_backend` | builtin | or any executable taking `--repo <path>` that prints Markdown |
 | `e2e` | false | run the e2e command in verify |
 | `push` / `create_pr` | true / true | `push = false` is a dry run |
+| `worktree_dir` | `.congoforce/worktrees` | where task worktrees go, relative to the repo root |
+| `history_dir` | `.congoforce/history` | where specs and reports are committed on the task branch |
+| `protected_branches` | main, master, develop, release | the push guard and ship stage refuse direct pushes to these |
+| `red_check_attempts` | 2 | test-author retries before a failing red check escalates |
+| `agent_retries` | 2 | re-runs of an agent whose output the helper rejects |
 | `[models]` | — | per role: `requirements`, `product-spec`, `tech-spec`, `test-author`, `implementer`, `verifier` |
 
 `standards.md` has a machine-readable block: the exact `install`, `lint`,

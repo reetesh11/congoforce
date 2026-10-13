@@ -41,6 +41,19 @@ def test_push_guard_allows(cmd):
     assert hooks.check_push(cmd, current_branch="feature") == ""
 
 
+def test_push_guard_reads_repo_protected_branches(tmp_path, monkeypatch):
+    import subprocess
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    (tmp_path / ".congoforce").mkdir()
+    (tmp_path / ".congoforce" / "config.toml").write_text('[congoforce]\nprotected_branches = ["trunk"]\n')
+    protected = hooks._protected_branches(str(tmp_path))
+    assert protected == ["trunk"]
+    assert hooks.check_push("git push origin trunk", "feature", protected)
+    assert hooks.check_push("git push origin main", "feature", protected) == ""
+    assert hooks._protected_branches(str(tmp_path / "missing")) is None
+
+
 def test_push_guard_bare_push_on_main():
     assert hooks.check_push("git push", current_branch="main")
     assert hooks.check_push("git push origin", current_branch="main")
@@ -90,6 +103,20 @@ def test_freeze_guard_bash(tmp_path):
     assert hooks.check_bash_write("echo x > tests/acceptance/test_a.py", str(root))
     assert hooks.check_bash_write("cat tests/acceptance/test_a.py", str(wt)) == ""
     assert hooks.check_bash_write("echo x > src/a.py", str(wt)) == ""
+
+
+def test_freeze_guard_bash_scoped_to_own_task(tmp_path):
+    root, wt = _frozen_repo(tmp_path)
+    other = root / ".congoforce" / "worktrees" / "t2"
+    other.mkdir(parents=True)
+    # A stacked task may delete or rewrite files that only another task froze.
+    assert hooks.check_bash_write("git rm tests/acceptance/test_a.py", str(other)) == ""
+    # Naming t1's worktree copy from elsewhere is still blocked.
+    assert hooks.check_bash_write(f"rm {wt}/tests/acceptance/test_a.py", str(other))
+    # Agents usually run from the repo root and cd into their worktree.
+    assert hooks.check_bash_write(f"cd {other} && git rm tests/acceptance/test_a.py", str(root)) == ""
+    assert hooks.check_bash_write(f"git -C {other} rm tests/acceptance/test_a.py", str(root)) == ""
+    assert hooks.check_bash_write(f"cd {wt} && git rm tests/acceptance/test_a.py", str(root))
 
 
 def test_stage_guard(tmp_path, capsys, monkeypatch):

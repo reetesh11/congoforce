@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- SETUP.md: install, target-repo setup, configuration, first run, troubleshooting.
+- The push guard reads `protected_branches` from the repo config instead of a
+  fixed list.
+- The config.toml template and README list every key (`worktree_dir`,
+  `history_dir`, `protected_branches`, `red_check_attempts`, `agent_retries`).
+- The freeze guard is scoped to the current task's worktree, so stacked tasks
+  can change files that only another task froze.
+
 ## 0.1.0 — 2026-10-10
 
 First release.

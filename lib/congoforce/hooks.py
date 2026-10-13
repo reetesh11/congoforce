@@ -106,6 +106,16 @@ def check_push(cmd: str, current_branch: str = "", protected=None) -> str:
     return ""
 
 
+def _protected_branches(cwd: str):
+    """protected_branches from the layered config of the repo at cwd; None means the defaults."""
+    try:
+        from . import config as cfgmod
+        from .paths import Paths, find_repo_root
+        return cfgmod.load(Paths(find_repo_root(cwd))).get("protected_branches") or None
+    except Exception:
+        return None
+
+
 def push_guard(data: dict) -> None:
     cmd = (data.get("tool_input") or {}).get("command", "")
     if "push" not in cmd:
@@ -117,7 +127,7 @@ def push_guard(data: dict) -> None:
                                 capture_output=True, text=True, timeout=5).stdout.strip()
     except Exception:
         pass
-    reason = check_push(cmd, branch)
+    reason = check_push(cmd, branch, _protected_branches(data.get("cwd") or "."))
     if reason:
         _deny(reason)
 
@@ -162,9 +172,16 @@ _WRITE_RX = re.compile(r"(>|>>|\btee\b|\bsed\s+-i|\bperl\s+-p?i|\bmv\b|\bcp\b|\b
 def check_bash_write(cmd: str, cwd: str) -> str:
     if not _WRITE_RX.search(cmd):
         return ""
-    # Find frozen tasks under the repo this command runs in.
+    # Find frozen tasks under the repo this command runs in. Inside a task worktree,
+    # another task's frozen files only count when the command names them by their
+    # worktree path: stacked tasks share file paths but not frozen sets.
     start = Path(cwd or ".")
-    root, _ = locate_from_path(str(start))
+    root, cur_task = locate_from_path(str(start))
+    if cur_task is None:
+        # `cd <worktree> && ...` or `git -C <worktree> ...` from the repo root.
+        named = set(re.findall(rf"{re.escape(CF_DIR)}/worktrees/([^/\s'\"]+)", cmd))
+        if len(named) == 1:
+            cur_task = named.pop()
     if root is None:
         cur = start.resolve()
         for cand in [cur, *cur.parents]:
@@ -175,12 +192,15 @@ def check_bash_write(cmd: str, cwd: str) -> str:
         return ""
     tasks_dir = Path(root) / CF_DIR / "tasks"
     for d in tasks_dir.iterdir() if tasks_dir.is_dir() else []:
+        if not d.is_dir():
+            continue
         st = read_json(d / "state.json", {}) or {}
         if not st.get("frozen"):
             continue
         fz = read_json(d / "frozen.json", {}) or {}
+        own = cur_task is None or d.name == cur_task
         for rel in fz.get("files", {}):
-            if rel in cmd:
+            if (rel in cmd) if own else (f"worktrees/{d.name}/{rel}" in cmd):
                 return f"{rel} is frozen; shell writes to it are blocked too (and would fail the hash check)."
     if re.search(r"\.congoforce/tasks/[^\s]+/(state|frozen|checks|baseline|red)\.json", cmd) and re.search(r"(>|\btee\b|\bsed\s+-i|\brm\b|\bmv\b|\bcp\b)", cmd):
         return "helper-owned state files can only be changed with congoforce commands."

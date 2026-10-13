@@ -139,6 +139,11 @@ repo_map_backend = "builtin"  # or an executable that takes --repo <path>
 e2e = false
 push = true                   # false = dry run: stop before pushing
 create_pr = true              # false = push the branch but open no PR
+worktree_dir = ""             # "" = .congoforce/worktrees; any path relative to the repo root
+history_dir = ".congoforce/history"  # where specs and reports are committed on the task branch
+protected_branches = ["main", "master", "develop", "release"]  # never pushed to directly
+red_check_attempts = 2        # test-author retries before the red check escalates
+agent_retries = 2             # re-runs of an agent whose output the helper rejects
 
 [models]                      # optional model per role, e.g. implementer = "sonnet"
 """
