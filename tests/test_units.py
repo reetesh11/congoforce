@@ -289,6 +289,7 @@ def test_custom_tier(tmp_path, monkeypatch):
     ('[models]\nbuild = "gpt-4"\n', "use one of"),
     ('[model_tiers]\nspec = ["planner"]\n', "unknown roles"),
     ('[congoforce]\narchitecture_diagram = "huge"\n', "architecture_diagram"),
+    ('[congoforce]\nrun_mode = "Background"\n', "run_mode"),
 ])
 def test_bad_model_config_is_rejected(tmp_path, monkeypatch, toml, msg):
     config, paths = _cfg_repo(tmp_path, monkeypatch, toml=toml)

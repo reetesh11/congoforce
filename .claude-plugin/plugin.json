@@ -32,8 +32,7 @@
     "run_mode": {
       "type": "string",
       "title": "Run mode",
-      "description": "background runs the implementer and verifier as background agents after Gate 2.",
-      "options": ["foreground", "background"],
+      "description": "foreground or background. background runs the implementer and verifier as background agents after Gate 2.",
       "default": "foreground"
     },
     "command_timeout": {

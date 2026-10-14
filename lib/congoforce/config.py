@@ -40,6 +40,7 @@ ROLES = ["requirements", "product-spec", "tech-spec", "test-author", "implemente
 # Values the Agent tool accepts for `model`; "inherit" means the session model.
 MODEL_ALIASES = ("opus", "sonnet", "haiku", "fable", "inherit")
 DIAGRAM_MODES = ("off", "large", "medium", "always")
+RUN_MODES = ("foreground", "background")
 
 USER_CONFIG_KEYS = {
     "max_iterations": int,
@@ -168,6 +169,8 @@ def load(paths, overrides=None) -> dict:
             cfg[key] = value
     layers.append(run_models)
     cfg["models"] = resolve_models(layers, cfg["model_tiers"])
+    if cfg.get("run_mode") not in RUN_MODES:
+        raise CFError(f"run_mode must be one of {', '.join(RUN_MODES)} (got {cfg.get('run_mode')!r})")
     if cfg.get("architecture_diagram") not in DIAGRAM_MODES:
         raise CFError(f"architecture_diagram must be one of {', '.join(DIAGRAM_MODES)} (got {cfg.get('architecture_diagram')!r})")
     return cfg
