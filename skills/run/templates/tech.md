@@ -4,6 +4,20 @@
 One paragraph: the design and why it fits this codebase. Name the existing
 files and patterns you follow.
 
+## Architecture
+Required when your prompt says so (large tasks by default); otherwise optional.
+One Mermaid diagram of the components this change touches and how data flows
+between them. Mark new and changed parts; keep it under about 25 nodes.
+
+```mermaid
+flowchart LR
+  client[API client] -->|POST /things| route[routes/things.py]
+  route --> svc[services/things.py]:::new
+  svc --> db[(things table)]:::changed
+  classDef new fill:#d1fae5,stroke:#059669
+  classDef changed fill:#fef3c7,stroke:#d97706
+```
+
 ## Interface contract
 The only section the test-author sees. Public surfaces the acceptance tests
 call, with exact names, import paths, signatures, inputs, outputs, errors:

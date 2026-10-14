@@ -245,3 +245,130 @@ def test_parse_override():
     assert parse_override("post_pr=/seo-review {pr},echo hi") == ("post_pr", ["/seo-review {pr}", "echo hi"])
     with pytest.raises(CFError):
         parse_override("nope=1")
+
+
+# ---------------------------------------------------------------- model tiers
+
+def _cfg_repo(tmp_path, monkeypatch, toml="", user=None):
+    from congoforce import config
+    from congoforce.paths import Paths
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
+    if user:
+        config.sync_user_config([f"{k}={v}" for k, v in user.items()])
+    (tmp_path / ".congoforce").mkdir(exist_ok=True)
+    if toml:
+        (tmp_path / ".congoforce" / "config.toml").write_text(toml)
+    return config, Paths(tmp_path)
+
+
+def test_models_default_to_inherit(tmp_path, monkeypatch):
+    config, paths = _cfg_repo(tmp_path, monkeypatch)
+    assert set(config.load(paths)["models"].values()) == {""}
+
+
+def test_model_tiers_layer_and_role_beats_tier(tmp_path, monkeypatch):
+    config, paths = _cfg_repo(tmp_path, monkeypatch, user={"default_model": "sonnet", "spec_model": "opus"},
+                              toml='[models]\nbuild = "haiku"\nverifier = "sonnet"\n')
+    m = config.load(paths)["models"]
+    assert m["requirements"] == m["tech-spec"] == m["test-author"] == "opus"
+    assert m["implementer"] == "haiku" and m["verifier"] == "sonnet"
+    # A per-run tier beats the repo file's role setting (later layers win); inherit means the session model.
+    m = config.load(paths, dict([config.parse_override("models.build=opus"), config.parse_override("models.tech_spec=inherit")]))["models"]
+    assert m["implementer"] == m["verifier"] == "opus" and m["tech-spec"] == "" and m["requirements"] == "opus"
+
+
+def test_custom_tier(tmp_path, monkeypatch):
+    config, paths = _cfg_repo(tmp_path, monkeypatch,
+                              toml='[model_tiers]\nreview = ["verifier", "test_author"]\n[models]\nreview = "opus"\nbuild = "haiku"\n')
+    m = config.load(paths)["models"]
+    assert m["verifier"] == "opus" and m["test-author"] == "opus" and m["implementer"] == "haiku"
+
+
+@pytest.mark.parametrize("toml, msg", [
+    ('[models]\nimplementor = "haiku"\n', "not a role, a tier"),
+    ('[models]\nbuild = "gpt-4"\n', "use one of"),
+    ('[model_tiers]\nspec = ["planner"]\n', "unknown roles"),
+    ('[congoforce]\narchitecture_diagram = "huge"\n', "architecture_diagram"),
+    ('[congoforce]\nrun_mode = "Background"\n', "run_mode"),
+])
+def test_bad_model_config_is_rejected(tmp_path, monkeypatch, toml, msg):
+    config, paths = _cfg_repo(tmp_path, monkeypatch, toml=toml)
+    with pytest.raises(CFError, match=msg):
+        config.load(paths)
+
+
+# ---------------------------------------------------------------- diagrams
+
+from congoforce import diagram  # noqa: E402
+
+TECH_WITH_DIAGRAM = "## Approach\nx\n\n## Architecture\n\n```mermaid\n%% overview\nflowchart LR\n  a --> b\n```\n\n## Interface contract\n- f()\n"
+
+
+@pytest.mark.parametrize("mode, size, requested, need", [
+    ("off", "large", "large", False),
+    ("always", "small", "small", True),
+    ("large", "medium", "medium", False),
+    ("large", "medium", "large", True),  # split declined: still a large task
+    ("medium", "medium", "medium", True),
+    ("medium", "small", "small", False),
+])
+def test_diagram_required(mode, size, requested, need):
+    assert diagram.required({"architecture_diagram": mode}, {"size": size, "size_requested": requested}) is need
+
+
+def test_diagram_blocks_and_headers():
+    assert diagram.blocks(TECH_WITH_DIAGRAM) == ["%% overview\nflowchart LR\n  a --> b\n"]
+    assert diagram.blocks("## Interface contract\n```mermaid\nflowchart LR\n```\n") == []  # outside the section
+    assert diagram.header_error("---\ntitle: x\n---\nsequenceDiagram\n  A->>B: hi\n") == ""
+    assert "use one of" in diagram.header_error("graphh TD\n")
+    assert diagram.header_error("\n%% only a comment\n") == "is empty"
+
+
+def test_diagram_process(tmp_path):
+    cfg = {"architecture_diagram": "always", "diagram_render": "off", "command_timeout": 30}
+    assert "needs a `## Architecture`" in diagram.process(cfg, {"size": "small"}, "## Tasks\n1. x\n", tmp_path)["error"]
+    res = diagram.process(cfg, {"size": "small"}, TECH_WITH_DIAGRAM, tmp_path)
+    assert res["error"] == "" and res["files"] == ["architecture.mmd"] and (tmp_path / "architecture.mmd").exists()
+    # A renderer that reports a parse error rejects the diagram; any other failure is only a note.
+    cfg["diagram_render"] = "echo 'Error: Parse error on line 2:' && exit 1"
+    assert "Parse error on line 2" in diagram.process(cfg, {}, TECH_WITH_DIAGRAM, tmp_path)["error"]
+    cfg["diagram_render"] = "echo 'Failed to launch the browser process' && exit 1"
+    res = diagram.process(cfg, {}, TECH_WITH_DIAGRAM, tmp_path)
+    assert res["error"] == "" and "not rendered" in res["note"]
+    cfg["diagram_render"] = "cp {in} {out}"
+    assert diagram.process(cfg, {}, TECH_WITH_DIAGRAM, tmp_path)["rendered"] == ["architecture.svg"]
+
+
+# ---------------------------------------------------------------- heredocs
+
+PUSH_LINE = "git push -u origin main"
+
+
+@pytest.mark.parametrize("cmd", [
+    f"cat > scaffold.sh <<'EOF'\n{PUSH_LINE}\nEOF",
+    f"cat > a.sh <<EOF && chmod +x a.sh\n{PUSH_LINE}\nEOF\necho done",
+    f"tee notes.md <<\"END\" >/dev/null\n{PUSH_LINE}\nEND",
+    f"cat > a <<-EOF\n\t{PUSH_LINE}\n\tEOF",
+    f"cat > a <<A > b <<B\n{PUSH_LINE}\nA\n{PUSH_LINE}\nB",
+])
+def test_push_guard_ignores_heredoc_text(cmd):
+    assert hooks.check_push(cmd, current_branch="feature") == ""
+
+
+@pytest.mark.parametrize("cmd", [
+    f"bash <<'EOF'\n{PUSH_LINE}\nEOF",            # the body runs
+    f"sh -s <<EOF\n{PUSH_LINE}\nEOF",
+    f"cat <<EOF | bash\n{PUSH_LINE}\nEOF",
+    f"eval $(cat <<EOF\n{PUSH_LINE}\nEOF\n)",
+    f"cat > a <<'EOF'\nhi\nEOF\n{PUSH_LINE}",     # after the terminator
+    f"echo 'x <<EOF'\n{PUSH_LINE}\nEOF",           # << inside quotes is not a heredoc
+    f"git push origin main <<EOF\nEOF",
+])
+def test_push_guard_still_sees_real_pushes(cmd):
+    assert hooks.check_push(cmd, current_branch="feature")
+
+
+def test_freeze_guard_ignores_heredoc_text_but_not_targets(tmp_path):
+    root, wt = _frozen_repo(tmp_path)
+    assert hooks.check_bash_write("cat > NOTES.md <<'EOF'\nsee tests/acceptance/test_a.py\nEOF", str(wt)) == ""
+    assert hooks.check_bash_write("cat > tests/acceptance/test_a.py <<'EOF'\nx\nEOF", str(wt))

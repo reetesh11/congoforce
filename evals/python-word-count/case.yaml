@@ -1,6 +1,7 @@
 schema_version: "1.1"
 name: python-word-count
-description: Full CongoForce run on the Python fixture with auto-approved gates; must end in a verified local branch.
-tags: [e2e, slow]
+description: "Full CongoForce run on the Python fixture with auto-approved gates; must end in a verified local branch."
+tags: [e2e, slow, python, feature]
+runs: 1
 context:
   scaffold_script: scaffold.sh

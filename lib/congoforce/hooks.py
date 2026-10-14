@@ -33,6 +33,73 @@ def _deny(reason: str) -> None:
                                              "permissionDecisionReason": f"CongoForce: {reason}"}}))
 
 
+# ---------------------------------------------------------------- command text
+
+_HEREDOC_RX = re.compile(r"<<(-?)[ \t]*(['\"]?)([A-Za-z_][\w.-]*)\2")
+# Commands that only copy a heredoc to a file or stdout. A body fed to anything
+# else (bash, sh, python, ssh, ...) may run, so it is kept and checked.
+_DATA_SINKS = {"cat", "tee"}
+_PREFIXES = {"sudo", "command", "env", "exec", "nohup", "time"}
+
+
+def _unquoted_heredocs(line: str) -> list:
+    """(strip_tabs, delimiter, consumer) for each `<<WORD` outside quotes on this line."""
+    out, quote, i = [], "", 0
+    while i < len(line):
+        ch = line[i]
+        if quote:
+            if ch == "\\" and quote == '"':
+                i += 2
+                continue
+            if ch == quote:
+                quote = ""
+        elif ch in "'\"":
+            quote = ch
+        elif ch == "\\":
+            i += 2
+            continue
+        elif line.startswith("<<", i) and not line.startswith("<<<", i) and (i == 0 or line[i - 1] != "<"):
+            m = _HEREDOC_RX.match(line, i)
+            if m:
+                start = max(line.rfind(sep, 0, i) for sep in (";", "&", "|", "(")) + 1
+                words = [w for w in line[start:i].split() if not re.match(r"^[A-Za-z_]\w*=", w)]
+                while words and words[0] in _PREFIXES:
+                    words.pop(0)
+                consumer = Path(words[0]).name if words else ""
+                # `cat <<EOF | bash`, `$(cat <<EOF)` and `eval` run the text after all.
+                if "|" in line[m.end():] or re.search(r"\$\(|`|<\(|\beval\b|\bsource\b|(^|\s)\.\s", line):
+                    consumer = ""
+                out.append((m.group(1) == "-", m.group(3), consumer))
+                i = m.end()
+                continue
+        i += 1
+    return out
+
+
+def strip_data_heredocs(cmd: str) -> str:
+    """The command without the bodies of heredocs that only feed `cat` or `tee`.
+
+    `cat > notes.md <<'EOF' ... git push origin main ... EOF` writes text; it
+    pushes nothing. The operator line stays, so redirect targets are still seen.
+    """
+    lines = cmd.split("\n")
+    out, i = [], 0
+    while i < len(lines):
+        line = lines[i]
+        out.append(line)
+        i += 1
+        for strip_tabs, delim, consumer in _unquoted_heredocs(line):
+            body_start = i
+            while i < len(lines) and (lines[i].lstrip("\t") if strip_tabs else lines[i]) != delim:
+                i += 1
+            if consumer not in _DATA_SINKS:
+                out.extend(lines[body_start:i])
+            if i < len(lines):
+                out.append(lines[i])  # the terminator line
+                i += 1
+    return "\n".join(out)
+
+
 # ---------------------------------------------------------------- push guard
 
 def _segments(cmd: str) -> list:
@@ -80,7 +147,7 @@ def _git_push_args(seg: list):
 def check_push(cmd: str, current_branch: str = "", protected=None) -> str:
     """Return a deny reason, or '' when the command is allowed."""
     protected = protected or DEFAULT_PROTECTED
-    for seg in _segments(cmd):
+    for seg in _segments(strip_data_heredocs(cmd)):
         args = _git_push_args(seg)
         if args is None:
             continue
@@ -170,6 +237,7 @@ _WRITE_RX = re.compile(r"(>|>>|\btee\b|\bsed\s+-i|\bperl\s+-p?i|\bmv\b|\bcp\b|\b
 
 
 def check_bash_write(cmd: str, cwd: str) -> str:
+    cmd = strip_data_heredocs(cmd)
     if not _WRITE_RX.search(cmd):
         return ""
     # Find frozen tasks under the repo this command runs in. Inside a task worktree,

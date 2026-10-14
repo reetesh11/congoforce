@@ -27,10 +27,20 @@ DEFAULTS = {
     "protected_branches": ["main", "master", "develop", "release"],
     "red_check_attempts": 2,
     "agent_retries": 2,
+    "architecture_diagram": "large",  # off | large | medium | always
+    "diagram_render": "auto",  # auto | off | a command with {in} and {out}
     "models": {},
+    "model_tiers": {
+        "spec": ["requirements", "product-spec", "tech-spec", "test-author"],
+        "build": ["implementer", "verifier"],
+    },
 }
 
 ROLES = ["requirements", "product-spec", "tech-spec", "test-author", "implementer", "verifier"]
+# Values the Agent tool accepts for `model`; "inherit" means the session model.
+MODEL_ALIASES = ("opus", "sonnet", "haiku", "fable", "inherit")
+DIAGRAM_MODES = ("off", "large", "medium", "always")
+RUN_MODES = ("foreground", "background")
 
 USER_CONFIG_KEYS = {
     "max_iterations": int,
@@ -39,6 +49,8 @@ USER_CONFIG_KEYS = {
     "run_mode": str,
     "command_timeout": int,
     "default_model": str,
+    "spec_model": str,
+    "build_model": str,
 }
 
 
@@ -87,7 +99,9 @@ def parse_override(pair: str):
         raise CFError(f"--set expects key=value, got {pair!r}")
     key, raw = pair.split("=", 1)
     key = key.strip()
-    if key not in DEFAULTS:
+    if key.startswith("models."):
+        return key, raw.strip()
+    if key not in DEFAULTS or key == "model_tiers":
         raise CFError(f"unknown config key {key!r}")
     default = DEFAULTS[key]
     if isinstance(default, bool):
@@ -99,13 +113,38 @@ def parse_override(pair: str):
     return key, raw
 
 
+def _norm_name(name: str) -> str:
+    return str(name).strip().replace("_", "-")
+
+
+def resolve_models(layers, tiers: dict) -> dict:
+    """Model per role. Layers go from weakest to strongest; inside a layer a role
+    beats its tier, and a tier beats `default`. "inherit" clears what came before."""
+    known = {"default", *ROLES, *tiers}
+    for layer in layers:
+        for name, value in layer.items():
+            if name not in known:
+                raise CFError(f"[models] {name!r} is not a role, a tier or `default` (roles: {', '.join(ROLES)}; tiers: {', '.join(tiers)})")
+            if value and value not in MODEL_ALIASES:
+                raise CFError(f"[models] {name} = {value!r}: use one of {', '.join(MODEL_ALIASES)}")
+    out = {}
+    for role in ROLES:
+        model = ""
+        names = ["default", *[t for t, roles in tiers.items() if role in roles], role]
+        for layer in layers:
+            for name in names:
+                if layer.get(name):
+                    model = layer[name]
+        out[role] = "" if model == "inherit" else model
+    return out
+
+
 def load(paths, overrides=None) -> dict:
     cfg = json.loads(json.dumps(DEFAULTS))
     user = read_json(user_config_path(), {}) or {}
-    default_model = user.pop("default_model", "")
-    cfg.update({k: v for k, v in user.items() if k in DEFAULTS})
-    if default_model:
-        cfg["models"] = {role: default_model for role in ROLES}
+    layers = [{"default": user.pop("default_model", ""), "spec": user.pop("spec_model", ""),
+               "build": user.pop("build_model", "")}]
+    cfg.update({k: v for k, v in user.items() if k in DEFAULTS and k not in ("models", "model_tiers")})
     if paths.config.exists():
         try:
             data = tomlish.loads(paths.config.read_text())
@@ -113,13 +152,27 @@ def load(paths, overrides=None) -> dict:
             raise CFError(f"{paths.config}: {exc}")
         section = data.get("congoforce", {})
         for key, value in section.items():
-            if key in DEFAULTS and key != "models":
+            if key in DEFAULTS and key not in ("models", "model_tiers"):
                 cfg[key] = value
-        models = dict(cfg.get("models") or {})
-        models.update({k: v for k, v in (data.get("models") or {}).items() if v})
-        cfg["models"] = models
+        for tier, roles in (data.get("model_tiers") or {}).items():
+            roles = [_norm_name(r) for r in (roles if isinstance(roles, list) else [roles])]
+            bad = [r for r in roles if r not in ROLES]
+            if bad:
+                raise CFError(f"[model_tiers] {tier}: unknown roles {', '.join(bad)} (roles: {', '.join(ROLES)})")
+            cfg["model_tiers"][_norm_name(tier)] = roles
+        layers.append({_norm_name(k): v for k, v in (data.get("models") or {}).items()})
+    run_models = {}
     for key, value in (overrides or {}).items():
-        cfg[key] = value
+        if key.startswith("models."):
+            run_models[_norm_name(key.split(".", 1)[1])] = value
+        else:
+            cfg[key] = value
+    layers.append(run_models)
+    cfg["models"] = resolve_models(layers, cfg["model_tiers"])
+    if cfg.get("run_mode") not in RUN_MODES:
+        raise CFError(f"run_mode must be one of {', '.join(RUN_MODES)} (got {cfg.get('run_mode')!r})")
+    if cfg.get("architecture_diagram") not in DIAGRAM_MODES:
+        raise CFError(f"architecture_diagram must be one of {', '.join(DIAGRAM_MODES)} (got {cfg.get('architecture_diagram')!r})")
     return cfg
 
 
@@ -144,6 +197,19 @@ history_dir = ".congoforce/history"  # where specs and reports are committed on 
 protected_branches = ["main", "master", "develop", "release"]  # never pushed to directly
 red_check_attempts = 2        # test-author retries before the red check escalates
 agent_retries = 2             # re-runs of an agent whose output the helper rejects
+architecture_diagram = "large"  # when tech.md must hold a Mermaid diagram: off | large | medium | always
+diagram_render = "auto"       # auto (mmdc if on PATH) | off | a command with {in} and {out}
 
-[models]                      # optional model per role, e.g. implementer = "sonnet"
+# Agent models: opus | sonnet | haiku | fable | inherit (the session model).
+# A role setting beats its tier; a tier beats `default`. --set models.<name>=<model> per run.
+[models]
+# default = "sonnet"
+# spec = "opus"               # requirements, product-spec, tech-spec, test-author
+# build = "sonnet"            # implementer, verifier
+# verifier = "opus"           # a role overrides its tier
+
+# Which roles each tier covers. Redefine a tier or add your own.
+# [model_tiers]
+# spec = ["requirements", "product-spec", "tech-spec", "test-author"]
+# build = ["implementer", "verifier"]
 """
