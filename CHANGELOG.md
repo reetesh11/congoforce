@@ -14,6 +14,9 @@
   (`diagram_render`). The diagram is shown at Gate 2, put in the PR body and
   committed with the specs. The verifier reports drift from it.
 - Gate packets are written even when a gate is auto-approved.
+- The push and freeze guards ignore heredoc bodies that only feed `cat` or
+  `tee` (file contents, not commands). Bodies fed to a shell, a pipe or `eval`
+  are still checked.
 - **End-to-end evals:** `js-clamp`, `python-bug-fix`,
   `python-architecture-tiers` and `large-task-split`, a shared scaffold, and
   stronger graders on `python-word-count`. `tests/test_eval_graders.py`

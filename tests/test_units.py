@@ -336,3 +336,38 @@ def test_diagram_process(tmp_path):
     assert res["error"] == "" and "not rendered" in res["note"]
     cfg["diagram_render"] = "cp {in} {out}"
     assert diagram.process(cfg, {}, TECH_WITH_DIAGRAM, tmp_path)["rendered"] == ["architecture.svg"]
+
+
+# ---------------------------------------------------------------- heredocs
+
+PUSH_LINE = "git push -u origin main"
+
+
+@pytest.mark.parametrize("cmd", [
+    f"cat > scaffold.sh <<'EOF'\n{PUSH_LINE}\nEOF",
+    f"cat > a.sh <<EOF && chmod +x a.sh\n{PUSH_LINE}\nEOF\necho done",
+    f"tee notes.md <<\"END\" >/dev/null\n{PUSH_LINE}\nEND",
+    f"cat > a <<-EOF\n\t{PUSH_LINE}\n\tEOF",
+    f"cat > a <<A > b <<B\n{PUSH_LINE}\nA\n{PUSH_LINE}\nB",
+])
+def test_push_guard_ignores_heredoc_text(cmd):
+    assert hooks.check_push(cmd, current_branch="feature") == ""
+
+
+@pytest.mark.parametrize("cmd", [
+    f"bash <<'EOF'\n{PUSH_LINE}\nEOF",            # the body runs
+    f"sh -s <<EOF\n{PUSH_LINE}\nEOF",
+    f"cat <<EOF | bash\n{PUSH_LINE}\nEOF",
+    f"eval $(cat <<EOF\n{PUSH_LINE}\nEOF\n)",
+    f"cat > a <<'EOF'\nhi\nEOF\n{PUSH_LINE}",     # after the terminator
+    f"echo 'x <<EOF'\n{PUSH_LINE}\nEOF",           # << inside quotes is not a heredoc
+    f"git push origin main <<EOF\nEOF",
+])
+def test_push_guard_still_sees_real_pushes(cmd):
+    assert hooks.check_push(cmd, current_branch="feature")
+
+
+def test_freeze_guard_ignores_heredoc_text_but_not_targets(tmp_path):
+    root, wt = _frozen_repo(tmp_path)
+    assert hooks.check_bash_write("cat > NOTES.md <<'EOF'\nsee tests/acceptance/test_a.py\nEOF", str(wt)) == ""
+    assert hooks.check_bash_write("cat > tests/acceptance/test_a.py <<'EOF'\nx\nEOF", str(wt))
